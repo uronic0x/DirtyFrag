@@ -77,12 +77,21 @@ jobs:
           fi
 
       - name: Create keystore
-        if: github.event_name != 'pull_request'
         run: |
-          # app/build.gradle.kts signs with app/keystore.jks (gitignored; the README
-          # documents how to generate it), so the KEYSTORE secret has to be decoded
-          # into app/, not into the repo root the upstream workflow used.
-          echo ${{ secrets.KEYSTORE }} | base64 --decode > app/keystore.jks
+          # PR builds sign the debug APK with a fixed local keystore so the
+          # build succeeds without secrets; release builds decode KEYSTORE.
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            keytool -genkeypair \
+              -keystore app/keystore.jks \
+              -storetype JKS \
+              -storepass dirtyfrag \
+              -keypass dirtyfrag \
+              -alias dirtyfrag \
+              -keyalg RSA -keysize 2048 -validity 10000 \
+              -dname "CN=DFRoot PR"
+          else
+            echo ${{ secrets.KEYSTORE }} | base64 --decode > app/keystore.jks
+          fi
           ls -l app/keystore.jks
 
       - name: Download DF LKMs
